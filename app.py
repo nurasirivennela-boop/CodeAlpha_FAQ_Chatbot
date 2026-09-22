@@ -1,7 +1,7 @@
 import string
 import numpy as np
 import nltk
-import gradio as gr
+import streamlit as st
 
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
@@ -9,7 +9,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-# Download required NLTK resources
+# Download NLTK resources
 nltk.download("punkt", quiet=True)
 nltk.download("punkt_tab", quiet=True)
 nltk.download("stopwords", quiet=True)
@@ -17,10 +17,7 @@ nltk.download("wordnet", quiet=True)
 nltk.download("omw-1.4", quiet=True)
 
 
-# --------------------------------------------------
-# FAQ DATASET
-# --------------------------------------------------
-
+# FAQ dataset
 faqs = [
     {
         "question": "What is artificial intelligence?",
@@ -89,35 +86,22 @@ questions = [faq["question"] for faq in faqs]
 answers = [faq["answer"] for faq in faqs]
 
 
-# --------------------------------------------------
-# NLP PREPROCESSING
-# --------------------------------------------------
-
+# NLP preprocessing
 lemmatizer = WordNetLemmatizer()
 stop_words = set(stopwords.words("english"))
 
 
 def preprocess_text(text):
-    """Clean and preprocess text using NLTK."""
-
     text = text.lower()
+    text = text.translate(str.maketrans("", "", string.punctuation))
 
-    # Remove punctuation
-    text = text.translate(
-        str.maketrans("", "", string.punctuation)
-    )
-
-    # Tokenization
     words = nltk.word_tokenize(text)
 
-    # Remove stopwords and non-alphabetic words
     words = [
-        word
-        for word in words
+        word for word in words
         if word.isalpha() and word not in stop_words
     ]
 
-    # Lemmatization
     words = [
         lemmatizer.lemmatize(word)
         for word in words
@@ -126,17 +110,14 @@ def preprocess_text(text):
     return " ".join(words)
 
 
-# Preprocess FAQ questions
+# Process FAQ questions
 processed_questions = [
     preprocess_text(question)
     for question in questions
 ]
 
 
-# --------------------------------------------------
-# TF-IDF VECTORIZATION
-# --------------------------------------------------
-
+# TF-IDF
 vectorizer = TfidfVectorizer()
 
 faq_vectors = vectorizer.fit_transform(
@@ -144,76 +125,59 @@ faq_vectors = vectorizer.fit_transform(
 )
 
 
-# --------------------------------------------------
-# CHATBOT LOGIC
-# --------------------------------------------------
-
+# Find best answer
 def get_answer(user_question):
-    """Find the most relevant FAQ answer."""
 
-    if not user_question or not user_question.strip():
+    if not user_question.strip():
         return "Please enter a question."
 
-    # Preprocess user input
     processed_input = preprocess_text(user_question)
 
-    # Convert input into TF-IDF vector
     user_vector = vectorizer.transform(
         [processed_input]
     )
 
-    # Calculate cosine similarity
     similarity_scores = cosine_similarity(
         user_vector,
         faq_vectors
     )[0]
 
-    # Find best matching FAQ
     best_match_index = int(
         np.argmax(similarity_scores)
     )
 
-    best_score = similarity_scores[
-        best_match_index
-    ]
+    best_score = similarity_scores[best_match_index]
 
-    # Confidence threshold
     if best_score < 0.15:
-        return (
-            "I'm sorry, I couldn't find a suitable "
-            "answer. Please try asking your question "
-            "in a different way."
-        )
+        return "I'm sorry, I couldn't find a suitable answer. Please try asking your question in a different way."
 
     return answers[best_match_index]
 
 
-# --------------------------------------------------
-# GRADIO CHATBOT
-# --------------------------------------------------
-
-def chatbot_response(message, history):
-    """Generate chatbot response."""
-    return get_answer(message)
-
-
-demo = gr.ChatInterface(
-    fn=chatbot_response,
-    title="🤖 AI FAQ Chatbot",
-    description=(
-        "Ask questions about Artificial Intelligence, "
-        "Machine Learning, NLP, and related topics."
-    ),
-    textbox=gr.Textbox(
-        placeholder="Ask your question here...",
-        label="Your Question"
-    )
+# Streamlit UI
+st.set_page_config(
+    page_title="AI FAQ Chatbot",
+    page_icon="🤖"
 )
 
+st.title("🤖 AI FAQ Chatbot")
 
-# --------------------------------------------------
-# RUN APPLICATION
-# --------------------------------------------------
+st.write(
+    "Ask questions about Artificial Intelligence, "
+    "Machine Learning, NLP, and related topics."
+)
 
-if __name__ == "__main__":
-    demo.launch()
+user_question = st.text_input(
+    "Your Question",
+    placeholder="Ask your question here..."
+)
+
+if st.button("Ask"):
+    if user_question:
+        answer = get_answer(user_question)
+
+        st.subheader("Chatbot Response")
+        st.success(answer)
+
+    else:
+        st.warning("Please enter a question.")
