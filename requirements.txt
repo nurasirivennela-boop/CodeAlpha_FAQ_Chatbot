@@ -1,0 +1,4 @@
+gradio
+nltk
+numpy
+scikit-learn
